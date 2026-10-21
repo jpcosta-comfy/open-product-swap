@@ -43,7 +43,16 @@ export default function HomePage() {
   useEffect(() => {
     fetch("/api/health")
       .then((r) => r.json())
-      .then((d: { cloud?: string | null }) => setCloud(d.cloud ?? null))
+      .then((d: { cloud?: string | null; hasKey?: boolean; base?: string }) => {
+        if (d.cloud) setCloud(d.cloud);
+        else if (d.hasKey && d.base) {
+          try {
+            setCloud(new URL(d.base).host);
+          } catch {
+            setCloud("ok");
+          }
+        } else setCloud(null);
+      })
       .catch(() => setCloud(null));
   }, []);
 
@@ -152,7 +161,7 @@ export default function HomePage() {
             <div>
               <div className="text-sm font-semibold tracking-tight">Open Product Swap</div>
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
-                MIT · Comfy Cloud · Open weights path
+                MIT · Comfy Build · Open weights path
               </div>
             </div>
           </div>

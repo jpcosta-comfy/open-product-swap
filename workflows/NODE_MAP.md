@@ -1,6 +1,6 @@
 # Workflow node / input map
 
-Both graphs are Comfy **API format** (numeric node ids, `class_type`, `inputs`). Submit the object as `prompt` to `POST https://cloud.comfy.org/api/prompt`, or as `workflow` to `POST https://cloud.comfy.org/api/v2/jobs`. Partner nodes (FLUX 3) need `extra_data.api_key_comfy_org`.
+Both graphs are Comfy **API format** (numeric node ids, `class_type`, `inputs`). Submit the object as `prompt` to `POST {COMFY_BASE_URL}/api/prompt`, or as `workflow` to `POST {COMFY_BASE_URL}/api/v2/jobs`. Default base is `https://cloud.comfy.org`; a Comfy Build serverless deployment uses `https://dep-xxxx.run.comfy.app`. Partner nodes (FLUX 3) need `extra_data.api_key_comfy_org` set to the same `COMFY_API_KEY` sent as `X-API-Key`.
 
 The Next.js server patches the nodes in this table before submit. Do not rename these ids without updating `lib/workflow.ts`.
 
@@ -88,4 +88,4 @@ No LTX. Wan 2.1 VACE 14B (open weights) + CausVid 4-step LoRA. FLUX 3 still supp
 
 ## Open-weights-only variant
 
-Drop node `8` (`Flux3ImageNode`) and point `WanVaceToVideo.reference_image` / `LTXVImgToVideoInplace.image` at node `7` (the SKU photo). Everything else is open weights already on Comfy Cloud: SAM 3.1, Wan 2.1 VACE, LTX-2.3, IC-LoRA.
+Drop node `8` (`Flux3ImageNode`) and point `WanVaceToVideo.reference_image` / `LTXVImgToVideoInplace.image` at node `7` (the SKU photo). Everything else is open weights already on the Comfy Build image / Cloud: SAM 3.1, Wan 2.1 VACE, LTX-2.3, IC-LoRA.

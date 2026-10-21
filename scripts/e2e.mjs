@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
  * End-to-end: upload demo/input assets to the local Next.js API, which
- * submits the LTX product-swap graph to Comfy Cloud and polls until done.
+ * submits the LTX product-swap graph to COMFY_BASE_URL and polls until done.
  *
  *   npm run build && npm start
  *   node scripts/e2e.mjs
  *
- * Requires COMFY_API_KEY in the environment of BOTH this script (not used
- * directly) and the Next.js server. Never prints the key.
+ * Requires COMFY_API_KEY (single key) on the Next.js server. Never prints the key.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";

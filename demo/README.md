@@ -12,10 +12,11 @@
 
 A live Comfy Cloud run was attempted from this repo with `COMFY_API_KEY`. Upload to `https://cloud.comfy.org/api/upload/image` succeeded. Queueing `POST /api/prompt` and `POST /api/v2/jobs` both returned **402** (`insufficient_credits` / “Subscription or credits required to queue workflows”). The same key against Comfy Router (`POST https://api.comfy.org/v2/models/bfl/flux-3-image/requests`) also returned 402.
 
-When the workspace has Cloud credits, run:
+Point the app at a Comfy Build serverless endpoint (`COMFY_BASE_URL=https://dep-xxxx.run.comfy.app`) or a Cloud workspace with credits, then:
 
 ```bash
 export COMFY_API_KEY=comfyui-...
+export COMFY_BASE_URL=https://dep-xxxx.run.comfy.app
 npm run build && npm start
 node scripts/e2e.mjs
 ```

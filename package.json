@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Open-source product swap for video — Comfy Cloud alternative to Higgsfield Genjutsu Object Swap.",
+  "description": "Open-source product swap for video — Comfy Build / Cloud alternative to Higgsfield Genjutsu Object Swap.",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",

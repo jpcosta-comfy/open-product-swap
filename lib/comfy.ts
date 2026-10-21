@@ -2,6 +2,12 @@ import type { ComfyOutputFile, ComfyWorkflow, JobStatus } from "./types";
 
 const DEFAULT_BASE = "https://cloud.comfy.org";
 
+/** Public Cloud, or a Comfy Build serverless URL such as https://dep-xxxx.run.comfy.app */
+export function comfyBaseUrl(): string {
+  return (process.env.COMFY_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
+}
+
+/** Single key only: COMFY_API_KEY. No other env keys are read. */
 export function comfyConfig() {
   const apiKey = process.env.COMFY_API_KEY;
   if (!apiKey) {
@@ -9,8 +15,7 @@ export function comfyConfig() {
       "COMFY_API_KEY is not set. Copy .env.example and export a key from https://platform.comfy.org/profile/api-keys",
     );
   }
-  const baseUrl = (process.env.COMFY_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
-  return { apiKey, baseUrl };
+  return { apiKey, baseUrl: comfyBaseUrl() };
 }
 
 function authHeaders(apiKey: string, json = false): HeadersInit {
