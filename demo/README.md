@@ -11,15 +11,17 @@
 
 ## Sample output
 
+**Correction (2026-10-21):** the first 720p demo (job `e4fe1ae5-…`) showed the original red can, not the SKU. VACE copied the product from the un-masked control frames. The graph now greys out the masked region (nodes 40/41) before `WanVaceToVideo`.
+
 Live Wan 2.1 VACE swaps on 2026-10-21 (Comfy Build serverless, Cloud API v2).
 
-**720p** — job `e4fe1ae5-d813-49fd-9300-0071d7494a65` succeeded at 1280×720, 5.0s, 80 frames. No 832×480 fallback.
+**720p** — job `e2bd12af-1b89-424c-92fe-6fdab7e9faa5` (regenerated 2026-10-21 with the grey-out VACE control) succeeded at 1280×720, 5.0s, 80 frames. The Haven Ginger bottle is in the hand across the whole clip.
 
-- `output/open_product_swap_wan_720p.mp4` — H.264 1280×720, 4.999s, 80 frames, 920 KB
+- `output/open_product_swap_wan_720p.mp4` — H.264 1280×720, 4.999s, 80 frames, 1.09 MB
 - `output/open_product_swap_keyframe_720p.png` — FLUX 3 keyframe
 - `output/job_720p.json` / `output/submit_720p.json` — poll and submit records (no secrets)
 
-**480p (kept)** — job `f4989ed7-c16d-4653-8d75-624282d37d1d`
+**480p (legacy, not faithful)** — job `f4989ed7-c16d-4653-8d75-624282d37d1d`. Made before the fix: it still shows the original red can, because the raw frames were fed as VACE `control_video`. Kept only for comparison.
 
 - `output/open_product_swap_wan.mp4` — H.264 480×480, 1.5s, 24 frames
 - `output/open_product_swap_keyframe_00001_.png` — FLUX 3 keyframe

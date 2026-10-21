@@ -50,7 +50,9 @@ Do not commit the key. `.env.example` lists placeholders only. Publish the spec 
 
 Two live Wan VACE runs on 2026-10-21 against the Comfy Build serverless endpoint (`COMFY_BASE_URL`, Cloud API v2, Bearer). Auth: Bearer only. Assets uploaded with `tags=["input"]` before the file part. FLUX 3 partner node kept (`extra_data`). CausVid 4-step.
 
-**720p (primary demo).** Job `e4fe1ae5-d813-49fd-9300-0071d7494a65`. Looped `demo/input/source.mp4` (3.06s 768×512) into `demo/input/source_5s.mp4` (5.25s, 84 frames @16fps). Submitted 1280×720, `durationSec=5`, `frames=81`. Succeeded in ~4 minutes (SAM3_Detect → ModelSamplingSD3 → KSampler 4/4). No OOM, no 832×480 fallback.
+**Superseded 2026-10-21:** this run showed the original red can, not the SKU (raw frames as VACE `control_video`). The current 720p demo is job `e2bd12af-1b89-424c-92fe-6fdab7e9faa5`, made with the greyed-out control; see `demo/README.md`.
+
+**720p (original, superseded).** Job `e4fe1ae5-d813-49fd-9300-0071d7494a65`. Looped `demo/input/source.mp4` (3.06s 768×512) into `demo/input/source_5s.mp4` (5.25s, 84 frames @16fps). Submitted 1280×720, `durationSec=5`, `frames=81`. Succeeded in ~4 minutes (SAM3_Detect → ModelSamplingSD3 → KSampler 4/4). No OOM, no 832×480 fallback.
 
 | Path | Result |
 | --- | --- |

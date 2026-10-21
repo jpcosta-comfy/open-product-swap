@@ -126,6 +126,11 @@ export function patchWorkflow(wf: ComfyWorkflow, patch: WorkflowPatch): ComfyWor
       if (patch.height) node.inputs.height = patch.height;
       if (patch.frames) node.inputs.length = toLtxFrames(patch.frames);
     }
+    if (node.class_type === "EmptyImage") {
+      // Grey fill for the VACE control video must match the frame size.
+      if (patch.width) node.inputs.width = patch.width;
+      if (patch.height) node.inputs.height = patch.height;
+    }
     if (node.class_type === "WanVaceToVideo") {
       if (patch.width) node.inputs.width = patch.width;
       if (patch.height) node.inputs.height = patch.height;

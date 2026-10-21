@@ -38,7 +38,7 @@ SKU photos (1–5) ─────────────┴─ FLUX 3 Image ed
 - **Masking:** SAM 3.1 multiplex (`SAM3_Detect`) with a text prompt.
 - **Keyframe:** FLUX 3 Image (partner node) composites the SKU into the first frame. Hands stay.
 - **LTX path (default):** green-screen the masked product (`LTXVInpaintPreprocess`), guide LTX-2.3 distilled with `ltx-2.3-22b-ic-lora-in-outpainting-0.9`.
-- **Wan path:** `WanVaceToVideo` with `control_video`, `control_masks`, and the FLUX 3 keyframe as `reference_image`.
+- **Wan path:** `WanVaceToVideo` with the masked region greyed out (0.5) in `control_video`, the SAM mask as `control_masks`, and the FLUX 3 keyframe as `reference_image`. Without the grey-out, VACE reproduces the original product from the control frames.
 
 Node ids and patch points: [`workflows/NODE_MAP.md`](workflows/NODE_MAP.md).
 
@@ -91,7 +91,7 @@ Live **Wan 2.1 VACE** product swaps on a Comfy Build serverless GPU (Cloud API v
 | [`demo/input/source.mp4`](demo/input/source.mp4) | Original 3s 768×512 source (person holding a can) |
 | [`demo/input/source_5s.mp4`](demo/input/source_5s.mp4) | Looped to 5.25s / 84 frames @16fps for the 720p job |
 | [`demo/input/sku_haven_ginger.jpg`](demo/input/sku_haven_ginger.jpg) | Replacement SKU |
-| [`demo/output/open_product_swap_wan_720p.mp4`](demo/output/open_product_swap_wan_720p.mp4) | **720p demo** — H.264 1280×720, 5.0s, 80 frames. Job `e4fe1ae5-d813-49fd-9300-0071d7494a65` |
+| [`demo/output/open_product_swap_wan_720p.mp4`](demo/output/open_product_swap_wan_720p.mp4) | **720p demo** — H.264 1280×720, 5.0s, 80 frames. Job `e2bd12af-1b89-424c-92fe-6fdab7e9faa5` (grey-out VACE control; SKU bottle in hand throughout) |
 | [`demo/output/open_product_swap_wan.mp4`](demo/output/open_product_swap_wan.mp4) | Short clip — H.264 480×480, 1.5s, 24 frames. Job `f4989ed7-c16d-4653-8d75-624282d37d1d` |
 | [`demo/output/open_product_swap_keyframe_720p.png`](demo/output/open_product_swap_keyframe_720p.png) | FLUX 3 keyframe from the 720p run |
 | [`demo/output/job_720p.json`](demo/output/job_720p.json) | 720p poll snapshot (`status: success`, no fallback) |

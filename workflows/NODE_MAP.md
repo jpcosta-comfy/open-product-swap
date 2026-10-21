@@ -54,7 +54,9 @@ Contest bonus path: LTX-2.3 distilled (open weights) + in-outpainting IC-LoRA. F
 
 ## `product-swap-wan-vace.json` — open-weights video inpaint
 
-No LTX. Wan 2.1 VACE 14B (open weights) + CausVid 4-step LoRA. FLUX 3 still supplies the product keyframe.
+No LTX. Wan 2.1 VACE 14B (open weights) + CausVid LoRA (6 steps). FLUX 3 still supplies the product keyframe.
+
+**Inpaint control (important):** `control_video` is the source clip with the masked product region filled with neutral grey (0.5) — node `41` composites node `40` (`EmptyImage`, color `0x808080`) through the SAM mask. If you feed the raw frames as `control_video`, VACE copies the original product (the red can) back and ignores the reference. The mask also goes to `control_masks`, and the FLUX 3 keyframe is the `reference_image`.
 
 | ID | class_type | Inputs the app patches | Notes |
 | --- | --- | --- | --- |
@@ -69,22 +71,24 @@ No LTX. Wan 2.1 VACE 14B (open weights) + CausVid 4-step LoRA. FLUX 3 still supp
 | 9 | `CheckpointLoaderSimple` | | SAM 3.1 |
 | 10 | `CLIPTextEncode` | `text` | Mask object |
 | 11 | `SAM3_Detect` | | |
-| 12 | `GrowMask` | `expand` | Default 20 |
+| 12 | `GrowMask` | `expand` | Default 40 (room for a taller SKU than the source product) |
 | 13 | `UNETLoader` | | `wan2.1_vace_14B_fp16.safetensors` |
-| 14 | `LoraLoaderModelOnly` | | `Wan21_CausVid_14B_T2V_lora_rank32.safetensors` @ 0.3 |
+| 14 | `LoraLoaderModelOnly` | | `Wan21_CausVid_14B_T2V_lora_rank32.safetensors` @ 0.5 |
 | 15 | `ModelSamplingSD3` | | `shift=5` |
 | 16 | `CLIPLoader` | | `umt5_xxl_fp8_e4m3fn_scaled`, type `wan` |
 | 17 | `VAELoader` | | `wan_2.1_vae.safetensors` |
 | 18 | `CLIPTextEncode` | `text` | Positive |
 | 19 | `CLIPTextEncode` | `text` | Negative |
-| 20 | `WanVaceToVideo` | `width`, `height`, `length`, `strength` | `control_video`, `control_masks`, `reference_image` |
-| 21 | `KSampler` | `seed`, `steps` | Turbo: 4 steps, cfg 1, `uni_pc` / `simple` |
+| 20 | `WanVaceToVideo` | `width`, `height`, `length`, `strength` | `control_video` = node 41 (greyed), `control_masks` = node 12, `reference_image` = node 8; strength 1.0 |
+| 21 | `KSampler` | `seed`, `steps` | Turbo: 6 steps, cfg 1, `uni_pc` / `simple` |
 | 22 | `TrimVideoLatent` | | `trim_amount` from VACE output 3 |
 | 23 | `VAEDecode` | | |
 | 24 | `ImageCompositeMasked` | | Blend inpaint onto original |
 | 25 | `CreateVideo` | `fps` | Default 16 |
 | 26 | `SaveVideo` | | Output clip |
 | 27 | `SaveImage` | | Keyframe still |
+| 40 | `EmptyImage` | `width`, `height` | Neutral grey 0.5; must match node 4's size |
+| 41 | `ImageCompositeMasked` | | Greys out the masked region of the frames → VACE `control_video` |
 
 ## Open-weights-only variant
 
