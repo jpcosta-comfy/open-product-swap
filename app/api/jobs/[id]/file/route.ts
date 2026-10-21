@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { downloadOutput } from "@/lib/comfy";
+import { ComfyError, downloadOutput, redact } from "@/lib/comfy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,11 +8,13 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const filename = url.searchParams.get("filename");
-    if (!filename) {
-      return NextResponse.json({ error: "filename is required" }, { status: 400 });
+    const id = url.searchParams.get("id");
+    const filename = url.searchParams.get("filename") || "output";
+    if (!id && !url.searchParams.get("filename")) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
     const file = await downloadOutput({
+      id: id || undefined,
       filename,
       subfolder: url.searchParams.get("subfolder") || "",
       type: url.searchParams.get("type") || "output",
@@ -20,13 +22,12 @@ export async function GET(req: Request) {
     const headers = new Headers();
     headers.set("Content-Type", file.contentType);
     headers.set("Cache-Control", "private, max-age=300");
-    headers.set(
-      "Content-Disposition",
-      `inline; filename="${filename.replace(/"/g, "")}"`,
-    );
+    const safeName = filename.replace(/"/g, "");
+    headers.set("Content-Disposition", `inline; filename="${safeName}"`);
     return new NextResponse(file.bytes, { headers });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Download failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = redact(error instanceof Error ? error.message : "Download failed");
+    const status = error instanceof ComfyError ? error.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

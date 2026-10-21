@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { comfyBaseUrl, pingComfy } from "@/lib/comfy";
+import { comfyBaseUrl, pingComfy, redact } from "@/lib/comfy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET() {
       base,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "health check failed";
+    const message = redact(error instanceof Error ? error.message : "health check failed");
     return NextResponse.json(
       { ok: false, error: message, hasKey, base },
       { status: 500 },

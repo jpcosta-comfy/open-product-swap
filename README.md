@@ -44,13 +44,13 @@ Node ids and patch points: [`workflows/NODE_MAP.md`](workflows/NODE_MAP.md).
 
 ## Run
 
-You need a [Comfy API key](https://platform.comfy.org/profile/api-keys). The server reads **only** `COMFY_API_KEY` (sent as `X-API-Key` and as `extra_data.api_key_comfy_org` for partner nodes) and `COMFY_BASE_URL` (defaults to `https://cloud.comfy.org`).
+You need a [Comfy API key](https://platform.comfy.org/profile/api-keys). The server reads **only** `COMFY_API_KEY` (sent as `Authorization: Bearer` and as `extra_data.api_key_comfy_org` for partner nodes) and `COMFY_BASE_URL` (defaults to `https://cloud.comfy.org`). Comfy Build serverless endpoints reject `X-API-Key`; they speak Cloud API v2 (`/api/v2/assets`, `/api/v2/jobs`).
 
 ```bash
 git clone <this-repo>
 cd open-product-swap
 npm install
-export COMFY_API_KEY=comfyui-...
+export COMFY_API_KEY=your-api-key-here
 # serverless deployment, or omit to use Cloud:
 export COMFY_BASE_URL=https://dep-xxxx.run.comfy.app
 npm run dev
@@ -84,14 +84,24 @@ comfy deploy stop build/
 
 ## Demo
 
-Demo inputs and a prior Cloud submit log are under [`demo/`](demo/). A live Cloud queue returned 402 (no workflow credits on the test key). Point `COMFY_BASE_URL` at a running Comfy Build deployment and re-run `node scripts/e2e.mjs`.
+A live **Wan 2.1 VACE** product swap ran 2026-10-21 on a Comfy Build serverless GPU (Cloud API v2). SAM 3.1 masked the can, FLUX 3 (partner node, billed via `extra_data.api_key_comfy_org`) edited the keyframe, Wan VACE 14B + CausVid inpainted 480×480 / 1.5s. Job `f4989ed7-c16d-4653-8d75-624282d37d1d` **succeeded**.
+
+| File | What |
+| --- | --- |
+| [`demo/input/source.mp4`](demo/input/source.mp4) | Source clip (person holding a can) |
+| [`demo/input/sku_haven_ginger.jpg`](demo/input/sku_haven_ginger.jpg) | Replacement SKU |
+| [`demo/output/open_product_swap_wan.mp4`](demo/output/open_product_swap_wan.mp4) | Swapped video (H.264, 480×480, 1.5s, 24 frames) |
+| [`demo/output/open_product_swap_keyframe_00001_.png`](demo/output/open_product_swap_keyframe_00001_.png) | FLUX 3 product keyframe |
+| [`demo/output/job.json`](demo/output/job.json) | Poll snapshot (`status: success`) |
+
+Re-run with the Next server up: `node scripts/e2e.mjs` (short/low-res Wan VACE).
 
 ## Stack
 
 - Next.js 15 App Router, TypeScript, Tailwind
-- `POST /api/jobs` uploads to `COMFY_BASE_URL`, patches the graph, submits, returns job ids
-- `GET /api/jobs/[id]` polls `/api/v2/jobs/{id}` (falls back to `/api/job/{id}/status` + history)
-- `GET /api/jobs/[id]/file` proxies outputs so the browser never sees the API key
+- `POST /api/jobs` uploads via `POST /api/v2/assets` (multipart: `content_type`, `file_path`, `tags=["input"]`, then `file`), patches the graph with each asset `file_path`, submits `POST /api/v2/jobs` with `Idempotency-Key`
+- `GET /api/jobs/[id]` polls `GET /api/v2/jobs/{id}`
+- `GET /api/jobs/[id]/file` resolves `GET /api/v2/assets/{id}` to a signed URL so the browser never sees the API key
 
 ## License
 

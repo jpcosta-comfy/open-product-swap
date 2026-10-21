@@ -20,11 +20,18 @@ function fileUrl(file: ComfyOutputFile) {
     subfolder: file.subfolder || "",
     type: file.type || "output",
   });
+  if (file.id) params.set("id", file.id);
   return `/api/jobs/x/file?${params.toString()}`;
 }
 
-function isVideoName(name: string) {
-  return /\.(mp4|webm|mov|mkv)$/i.test(name) || name.includes("video/");
+function isVideoFile(file: ComfyOutputFile) {
+  const name = file.filename || "";
+  const kind = `${file.type || ""} ${file.format || ""}`;
+  return (
+    /\.(mp4|webm|mov|mkv)$/i.test(name) ||
+    name.includes("video/") ||
+    /video/i.test(kind)
+  );
 }
 
 export default function HomePage() {
@@ -397,16 +404,16 @@ export default function HomePage() {
                     {job.outputs.length ? (
                       <div className="mt-2 space-y-2">
                         {job.outputs.map((file) =>
-                          isVideoName(file.filename) ? (
+                          isVideoFile(file) ? (
                             <video
-                              key={file.filename}
+                              key={file.id || file.filename}
                               src={fileUrl(file)}
                               controls
                               className="w-full rounded-lg bg-black"
                             />
                           ) : (
                             <img
-                              key={file.filename}
+                              key={file.id || file.filename}
                               src={fileUrl(file)}
                               alt={file.filename}
                               className="w-full rounded-lg"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getJob } from "@/lib/comfy";
+import { ComfyError, getJob, redact } from "@/lib/comfy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,8 @@ export async function GET(
     const snapshot = await getJob(id);
     return NextResponse.json(snapshot);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Poll failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = redact(error instanceof Error ? error.message : "Poll failed");
+    const status = error instanceof ComfyError ? error.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

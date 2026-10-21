@@ -1,6 +1,16 @@
+import { randomUUID } from "node:crypto";
 import type { ComfyOutputFile, ComfyWorkflow, JobStatus } from "./types";
 
 const DEFAULT_BASE = "https://cloud.comfy.org";
+
+export class ComfyError extends Error {
+  constructor(
+    message: string,
+    public status = 502,
+  ) {
+    super(message);
+  }
+}
 
 /** Public Cloud, or a Comfy Build serverless URL such as https://dep-xxxx.run.comfy.app */
 export function comfyBaseUrl(): string {
@@ -11,144 +21,151 @@ export function comfyBaseUrl(): string {
 export function comfyConfig() {
   const apiKey = process.env.COMFY_API_KEY;
   if (!apiKey) {
-    throw new Error(
+    throw new ComfyError(
       "COMFY_API_KEY is not set. Copy .env.example and export a key from https://platform.comfy.org/profile/api-keys",
+      500,
     );
   }
   return { apiKey, baseUrl: comfyBaseUrl() };
 }
 
-function authHeaders(apiKey: string, json = false): HeadersInit {
+/** Strip anything that looks like the key from upstream error text. */
+export function redact(s: string): string {
+  const k = process.env.COMFY_API_KEY;
+  let out = k ? s.split(k).join("[redacted]") : s;
+  const prefix = ["comfy", "ui-"].join("");
+  out = out.replace(new RegExp(`(${prefix}|sk-)[A-Za-z0-9_\\-]{8,}`, "gi"), "[redacted]");
+  out = out.replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
+  return out.slice(0, 600);
+}
+
+function authHeaders(json = false): HeadersInit {
+  const { apiKey } = comfyConfig();
   const headers: Record<string, string> = {
-    "X-API-Key": apiKey,
     Authorization: `Bearer ${apiKey}`,
   };
   if (json) headers["Content-Type"] = "application/json";
   return headers;
 }
 
-async function readError(res: Response): Promise<string> {
+async function call<T>(
+  method: string,
+  path: string,
+  init: { body?: BodyInit; headers?: Record<string, string> } = {},
+): Promise<T> {
+  const { baseUrl } = comfyConfig();
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    body: init.body,
+    headers: { ...authHeaders(false), ...(init.headers || {}) },
+    cache: "no-store",
+  });
   const text = await res.text();
-  try {
-    const parsed = JSON.parse(text) as {
-      error?: { message?: string; type?: string } | string;
-      message?: string;
-      node_errors?: unknown;
-    };
-    if (typeof parsed.error === "string") return parsed.error;
-    if (parsed.error?.message) return parsed.error.message;
-    if (parsed.message) return parsed.message;
-    if (parsed.node_errors) return JSON.stringify(parsed.node_errors).slice(0, 800);
-    return text.slice(0, 800) || `HTTP ${res.status}`;
-  } catch {
-    return text.slice(0, 800) || `HTTP ${res.status}`;
+  if (!res.ok) {
+    throw new ComfyError(
+      `Comfy API ${method} ${path.split("?")[0]} -> HTTP ${res.status}: ${redact(text)}`,
+      res.status >= 500 ? 502 : res.status,
+    );
   }
+  return (text ? JSON.parse(text) : null) as T;
+}
+
+function mimeOf(file: Blob, filename: string): string {
+  if (file.type) return file.type;
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".mp4")) return "video/mp4";
+  if (lower.endsWith(".webm")) return "video/webm";
+  if (lower.endsWith(".mov")) return "video/quicktime";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".png")) return "image/png";
+  return "application/octet-stream";
 }
 
 export type UploadedAsset = {
+  id: string;
   filename: string;
   subfolder: string;
   type: string;
+};
+
+export type V2Asset = {
+  id: string;
+  file_path?: string;
+  name?: string;
+  url?: string;
+};
+
+export type V2JobOutput = {
+  id: string;
+  name: string;
+  node_id: string;
+  type: string;
+  content_type?: string;
+  size_bytes?: number;
+};
+
+export type V2Job = {
+  id: string;
+  status:
+    | "queued"
+    | "running"
+    | "canceling"
+    | "succeeded"
+    | "failed"
+    | "canceled"
+    | "expired"
+    | string;
+  progress?: number | null | { value?: number; max?: number; message?: string };
+  queue_position?: number | null;
+  error?: unknown;
+  outputs?: V2JobOutput[] | null;
+  message?: string;
 };
 
 export async function uploadInput(
   file: File | Blob,
   filename: string,
 ): Promise<UploadedAsset> {
-  const { apiKey, baseUrl } = comfyConfig();
-  const body = new FormData();
-  body.append("image", file, filename);
-  body.append("type", "input");
-  body.append("overwrite", "true");
+  const contentType = mimeOf(file, filename);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // Field order matters: content_type, file_path, tags BEFORE the file part.
+  const form = new FormData();
+  form.append("content_type", contentType);
+  form.append("file_path", filename);
+  form.append("tags", JSON.stringify(["input"]));
+  form.append("file", new Blob([bytes], { type: contentType }), filename);
 
-  const endpoints = [`${baseUrl}/api/upload/image`, `${baseUrl}/api/upload/video`];
-  let lastError = "upload failed";
-
-  for (const url of endpoints) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: authHeaders(apiKey),
-      body,
-    });
-    if (res.ok) {
-      const json = (await res.json()) as {
-        name?: string;
-        filename?: string;
-        subfolder?: string;
-        type?: string;
-      };
-      const name = json.name || json.filename || filename;
-      return {
-        filename: name,
-        subfolder: json.subfolder || "",
-        type: json.type || "input",
-      };
-    }
-    lastError = await readError(res);
-    if (res.status !== 404 && res.status !== 405) {
-      throw new Error(`Comfy upload failed: ${lastError}`);
-    }
+  const asset = await call<V2Asset>("POST", "/api/v2/assets", { body: form });
+  const filePath = asset.file_path || asset.name || filename;
+  if (!asset.id) {
+    throw new ComfyError("Comfy asset upload returned no id", 502);
   }
-
-  throw new Error(`Comfy upload failed: ${lastError}`);
+  return {
+    id: asset.id,
+    filename: filePath,
+    subfolder: "",
+    type: "input",
+  };
 }
 
 export async function submitWorkflow(workflow: ComfyWorkflow): Promise<string> {
-  const { apiKey, baseUrl } = comfyConfig();
-  const extraData = { api_key_comfy_org: apiKey };
-
-  const v2 = await fetch(`${baseUrl}/api/v2/jobs`, {
-    method: "POST",
-    headers: authHeaders(apiKey, true),
+  const { apiKey } = comfyConfig();
+  const job = await call<V2Job>("POST", "/api/v2/jobs", {
     body: JSON.stringify({
       workflow,
-      extra_data: extraData,
+      extra_data: { api_key_comfy_org: apiKey },
     }),
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": randomUUID(),
+    },
   });
-
-  if (v2.ok || v2.status === 201) {
-    const json = (await v2.json()) as { id?: string; prompt_id?: string };
-    const id = json.id || json.prompt_id;
-    if (id) return id;
+  if (!job?.id) {
+    throw new ComfyError("Comfy submit returned no job id", 502);
   }
-
-  const v1 = await fetch(`${baseUrl}/api/prompt`, {
-    method: "POST",
-    headers: authHeaders(apiKey, true),
-    body: JSON.stringify({
-      prompt: workflow,
-      extra_data: extraData,
-    }),
-  });
-
-  if (!v1.ok) {
-    const v2Err = v2.ok ? "" : await readError(v2);
-    const v1Err = await readError(v1);
-    const err = new Error(`Comfy submit failed: ${v1Err || v2Err}`) as Error & {
-      status?: number;
-    };
-    err.status = v1.status === 402 || v2.status === 402 ? 402 : 500;
-    throw err;
-  }
-
-  const json = (await v1.json()) as {
-    prompt_id?: string;
-    node_errors?: Record<string, unknown>;
-  };
-  if (json.node_errors && Object.keys(json.node_errors).length > 0) {
-    throw new Error(`Workflow rejected: ${JSON.stringify(json.node_errors).slice(0, 800)}`);
-  }
-  if (!json.prompt_id) throw new Error("Comfy submit returned no prompt_id");
-  return json.prompt_id;
+  return job.id;
 }
-
-type StatusPayload = {
-  status?: string;
-  state?: string;
-  progress?: number | { value?: number; message?: string };
-  error?: { message?: string } | string;
-  message?: string;
-};
 
 const TERMINAL_SUCCESS = new Set(["success", "succeeded", "completed", "complete"]);
 const TERMINAL_ERROR = new Set([
@@ -178,199 +195,101 @@ export type JobSnapshot = {
   rawStatus?: string;
 };
 
-function collectOutputs(payload: unknown): ComfyOutputFile[] {
-  const files: ComfyOutputFile[] = [];
-  const seen = new Set<string>();
+function errorText(err: unknown): string | undefined {
+  if (!err) return undefined;
+  if (typeof err === "string") return redact(err);
+  try {
+    const e = err as { message?: string; type?: string; details?: string };
+    return redact(e.message || e.details || JSON.stringify(err));
+  } catch {
+    return "Job failed";
+  }
+}
 
-  const push = (item: ComfyOutputFile) => {
-    if (!item.filename) return;
-    const key = `${item.type || "output"}:${item.subfolder || ""}:${item.filename}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    files.push(item);
-  };
-
-  const walk = (value: unknown) => {
-    if (!value) return;
-    if (Array.isArray(value)) {
-      for (const item of value) walk(item);
-      return;
-    }
-    if (typeof value !== "object") return;
-    const rec = value as Record<string, unknown>;
-    if (typeof rec.filename === "string") {
-      push({
-        filename: rec.filename,
-        subfolder: typeof rec.subfolder === "string" ? rec.subfolder : "",
-        type: typeof rec.type === "string" ? rec.type : "output",
-        format: typeof rec.format === "string" ? rec.format : undefined,
-      });
-    }
-    if (typeof rec.name === "string" && rec.type && rec.url) {
-      push({
-        filename: rec.name,
-        subfolder: "",
-        type: "output",
-        format: typeof rec.content_type === "string" ? rec.content_type : undefined,
-      });
-    }
-    for (const nested of Object.values(rec)) {
-      if (nested && typeof nested === "object") walk(nested);
-    }
-  };
-
-  walk(payload);
-  return files;
+function mapOutputs(outputs: V2JobOutput[] | null | undefined): ComfyOutputFile[] {
+  if (!outputs?.length) return [];
+  return outputs.map((item) => ({
+    id: item.id,
+    filename: item.name || item.id,
+    subfolder: "",
+    type: item.type || "output",
+    format: item.content_type,
+  }));
 }
 
 export async function getJob(id: string): Promise<JobSnapshot> {
-  const { apiKey, baseUrl } = comfyConfig();
-
-  const v2 = await fetch(`${baseUrl}/api/v2/jobs/${id}`, {
-    headers: authHeaders(apiKey),
-    cache: "no-store",
-  });
-  if (v2.ok) {
-    const json = (await v2.json()) as StatusPayload & {
-      outputs?: unknown;
-      error?: { message?: string } | string | null;
-      progress?: { value?: number; message?: string } | number;
-    };
-    const status = normalizeStatus(json.status);
-    const progress =
-      typeof json.progress === "number"
-        ? json.progress
-        : json.progress?.value;
-    const message =
-      typeof json.progress === "object" ? json.progress?.message : json.message;
-    const error =
-      typeof json.error === "string"
-        ? json.error
-        : json.error?.message;
-    return {
-      status,
-      progress,
-      message,
-      error: status === "error" ? error : undefined,
-      outputs: collectOutputs(json),
-      rawStatus: json.status,
-    };
-  }
-
-  const statusRes = await fetch(`${baseUrl}/api/job/${id}/status`, {
-    headers: authHeaders(apiKey),
-    cache: "no-store",
-  });
-  let rawStatus: string | undefined;
+  const json = await call<V2Job>("GET", `/api/v2/jobs/${encodeURIComponent(id)}`);
+  const status = normalizeStatus(json.status);
   let progress: number | undefined;
   let message: string | undefined;
-  let error: string | undefined;
-
-  if (statusRes.ok) {
-    const json = (await statusRes.json()) as StatusPayload;
-    rawStatus = json.status || json.state;
+  if (typeof json.progress === "number") {
+    progress = json.progress;
+  } else if (json.progress && typeof json.progress === "object") {
+    const value = json.progress.value;
+    const max = json.progress.max;
     progress =
-      typeof json.progress === "number"
-        ? json.progress
-        : json.progress?.value;
-    message =
-      (typeof json.progress === "object" ? json.progress?.message : undefined) ||
-      json.message;
-    error = typeof json.error === "string" ? json.error : json.error?.message;
+      typeof value === "number" && typeof max === "number" && max > 0
+        ? value / max
+        : value;
+    message = json.progress.message;
   }
-
-  const historyRes = await fetch(`${baseUrl}/api/history_v2/${id}`, {
-    headers: authHeaders(apiKey),
-    cache: "no-store",
-  });
-  let historyJson: unknown = null;
-  if (historyRes.ok) {
-    historyJson = await historyRes.json();
-  } else {
-    const fallback = await fetch(`${baseUrl}/api/history/${id}`, {
-      headers: authHeaders(apiKey),
-      cache: "no-store",
-    });
-    if (fallback.ok) historyJson = await fallback.json();
+  if (json.queue_position != null && json.queue_position > 0) {
+    message = message || `queue position ${json.queue_position}`;
   }
-
-  const outputs = collectOutputs(historyJson);
-  const status = normalizeStatus(rawStatus);
-  const histRec = historyJson as Record<string, unknown> | null;
-  const histStatus =
-    histRec && typeof histRec === "object"
-      ? (histRec.status as { status_str?: string; completed?: boolean } | undefined)
-      : undefined;
-  const completed =
-    histStatus?.completed === true || histStatus?.status_str === "success";
-
+  message = message || json.message;
+  const error = status === "error" ? errorText(json.error) : undefined;
   return {
-    status: completed && outputs.length ? "success" : status,
+    status,
     progress,
     message,
-    error: status === "error" ? error : undefined,
-    outputs,
-    rawStatus,
+    error,
+    outputs: mapOutputs(json.outputs),
+    rawStatus: json.status,
   };
-}
-
-export async function viewUrl(file: ComfyOutputFile): Promise<string> {
-  const { apiKey, baseUrl } = comfyConfig();
-  const params = new URLSearchParams({
-    filename: file.filename,
-    subfolder: file.subfolder || "",
-    type: file.type || "output",
-  });
-  const url = `${baseUrl}/api/view?${params.toString()}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: authHeaders(apiKey),
-    redirect: "manual",
-  });
-  const location = res.headers.get("location");
-  if (location) return location;
-  return url;
 }
 
 export async function downloadOutput(file: ComfyOutputFile): Promise<{
   bytes: ArrayBuffer;
   contentType: string;
 }> {
-  const { apiKey, baseUrl } = comfyConfig();
-  const params = new URLSearchParams({
-    filename: file.filename,
-    subfolder: file.subfolder || "",
-    type: file.type || "output",
-  });
-  const url = `${baseUrl}/api/view?${params.toString()}`;
-  const head = await fetch(url, {
-    method: "GET",
-    headers: authHeaders(apiKey),
-    redirect: "manual",
-  });
-  const location = head.headers.get("location");
-  if (location && (head.status === 301 || head.status === 302 || head.status === 307)) {
-    const signed = await fetch(location);
-    if (!signed.ok) throw new Error(`Download failed: HTTP ${signed.status}`);
-    return {
-      bytes: await signed.arrayBuffer(),
-      contentType: signed.headers.get("content-type") || "application/octet-stream",
-    };
+  const assetId = file.id || file.filename;
+  if (!assetId) {
+    throw new ComfyError("Output asset id is required", 400);
   }
-  if (!head.ok) throw new Error(await readError(head));
+  const asset = await call<V2Asset>(
+    "GET",
+    `/api/v2/assets/${encodeURIComponent(assetId)}`,
+  );
+  if (!asset.url) {
+    throw new ComfyError("Asset response had no signed url", 502);
+  }
+  const signed = await fetch(asset.url, { cache: "no-store" });
+  if (!signed.ok) {
+    throw new ComfyError(`Download failed: HTTP ${signed.status}`, signed.status);
+  }
   return {
-    bytes: await head.arrayBuffer(),
-    contentType: head.headers.get("content-type") || "application/octet-stream",
+    bytes: await signed.arrayBuffer(),
+    contentType:
+      signed.headers.get("content-type") ||
+      file.format ||
+      "application/octet-stream",
   };
 }
 
 export async function pingComfy(): Promise<{ ok: boolean; cloudVersion?: string }> {
   const { apiKey, baseUrl } = comfyConfig();
-  const res = await fetch(`${baseUrl}/api/system_stats`, {
-    headers: authHeaders(apiKey),
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  const stats = await fetch(`${baseUrl}/api/system_stats`, {
+    headers,
     cache: "no-store",
   });
-  if (!res.ok) return { ok: false };
-  const json = (await res.json()) as { system?: { cloud_version?: string } };
-  return { ok: true, cloudVersion: json.system?.cloud_version };
+  if (stats.ok) {
+    const json = (await stats.json()) as { system?: { cloud_version?: string } };
+    return { ok: true, cloudVersion: json.system?.cloud_version };
+  }
+  const probe = await fetch(
+    `${baseUrl}/api/v2/jobs/00000000-0000-0000-0000-000000000000`,
+    { headers, cache: "no-store" },
+  );
+  return { ok: probe.status !== 401 };
 }

@@ -14,6 +14,8 @@ export type WorkflowPatch = {
   height?: number;
   durationSec?: number;
   frames?: number;
+  /** Skip FLUX 3 partner node; wire SKU photo as VACE/LTX reference. */
+  skipPartnerNodes?: boolean;
 };
 
 function asWorkflow(raw: unknown): ComfyWorkflow {
@@ -74,7 +76,23 @@ export function patchWorkflow(wf: ComfyWorkflow, patch: WorkflowPatch): ComfyWor
   }
 
   const flux = out["8"];
-  if (flux?.class_type === "Flux3ImageNode") {
+  if (patch.skipPartnerNodes) {
+    if (flux?.class_type === "Flux3ImageNode") {
+      delete out["8"];
+    }
+    if (out["20"]?.class_type === "WanVaceToVideo") {
+      out["20"].inputs.reference_image = ["7", 0];
+    }
+    if (out["23"]?.class_type === "LTXVImgToVideoInplace") {
+      out["23"].inputs.image = ["7", 0];
+    }
+    for (const node of Object.values(out)) {
+      if (node.class_type === "SaveImage" && Array.isArray(node.inputs.images)) {
+        const src = node.inputs.images as [string, number];
+        if (src[0] === "8") node.inputs.images = ["7", 0];
+      }
+    }
+  } else if (flux?.class_type === "Flux3ImageNode") {
     flux.inputs.prompt = fluxPrompt(patch.prompt, patch.skuFilenames.length);
     flux.inputs.seed = patch.seed;
     for (let i = 1; i < patch.skuFilenames.length; i += 1) {
@@ -121,6 +139,11 @@ export function patchWorkflow(wf: ComfyWorkflow, patch: WorkflowPatch): ComfyWor
 function toLtxFrames(n: number): number {
   if (n <= 1) return 9;
   return Math.floor((n - 1) / 8) * 8 + 1;
+}
+
+export function wanFrameCount(durationSec: number, fps = 16): number {
+  const n = Math.max(9, Math.round(durationSec * fps));
+  return Math.floor((n - 1) / 4) * 4 + 1;
 }
 
 function fluxPrompt(userPrompt: string, skuCount: number): string {

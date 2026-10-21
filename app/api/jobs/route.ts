@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { submitWorkflow, uploadInput } from "@/lib/comfy";
+import { ComfyError, redact, submitWorkflow, uploadInput } from "@/lib/comfy";
 import type { PipelineId } from "@/lib/types";
 import { PIPELINES } from "@/lib/types";
 import {
@@ -7,6 +7,7 @@ import {
   DEFAULT_PROMPT,
   loadWorkflow,
   patchWorkflow,
+  wanFrameCount,
 } from "@/lib/workflow";
 
 export const runtime = "nodejs";
@@ -48,6 +49,13 @@ export async function POST(req: Request) {
     const durationSec = Number(form.get("durationSec") || 0) || undefined;
     const width = Number(form.get("width") || 0) || undefined;
     const height = Number(form.get("height") || 0) || undefined;
+    const skipPartnerNodes =
+      form.get("skipPartner") === "1" || form.get("skipPartner") === "true";
+    const frames =
+      Number(form.get("frames") || 0) ||
+      (pipeline === "wan-vace" && durationSec
+        ? wanFrameCount(durationSec)
+        : undefined);
 
     let skuSpecs: SkuSpec[] = [];
     const rawSpecs = form.get("skus");
@@ -105,6 +113,8 @@ export async function POST(req: Request) {
         width,
         height,
         durationSec,
+        frames,
+        skipPartnerNodes,
       });
 
       const id = await submitWorkflow(workflow);
@@ -118,11 +128,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ jobs });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Submit failed";
-    const status =
-      error instanceof Error && "status" in error && typeof error.status === "number"
-        ? error.status
-        : 500;
+    const message = redact(error instanceof Error ? error.message : "Submit failed");
+    const status = error instanceof ComfyError ? error.status : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

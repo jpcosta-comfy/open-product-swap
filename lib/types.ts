@@ -17,6 +17,7 @@ export type JobStatus =
   | "lost";
 
 export type ComfyOutputFile = {
+  id?: string;
   filename: string;
   subfolder?: string;
   type?: string;

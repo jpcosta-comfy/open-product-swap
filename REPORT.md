@@ -2,21 +2,20 @@
 
 ## Architecture
 
-Next.js 15 App Router (TypeScript, Tailwind) talks to **`COMFY_BASE_URL`**: a Comfy Build serverless deployment (`https://dep-xxxx.run.comfy.app`) or public Comfy Cloud (`https://cloud.comfy.org`, the default). Auth is the single env var `COMFY_API_KEY`, sent as `X-API-Key` and as `extra_data.api_key_comfy_org`. Nothing runs a local ComfyUI.
+Next.js 15 App Router (TypeScript, Tailwind) talks to **`COMFY_BASE_URL`**: a Comfy Build serverless deployment (`https://dep-xxxx.run.comfy.app`) or public Comfy Cloud (`https://cloud.comfy.org`, the default). Auth is the single env var `COMFY_API_KEY`, sent as `Authorization: Bearer` and as `extra_data.api_key_comfy_org`. Serverless rejects `X-API-Key`. Nothing runs a local ComfyUI.
 
 ```
 browser
   │  FormData: video + 1–5 SKU photos per SKU, batch list
   ▼
 POST /api/jobs
-  │  1. upload each file to {COMFY_BASE_URL}/api/upload/image (X-API-Key)
+  │  1. POST /api/v2/assets (multipart: content_type, file_path, tags=["input"], file)
   │  2. load workflows/product-swap-{ltx|wan-vace}.json
-  │  3. patch node 1 (video), node 6+ (SKU), prompts, seed
-  │  4. POST /api/v2/jobs (fallback POST /api/prompt) with extra_data.api_key_comfy_org
+  │  3. patch LoadVideo/LoadImage with asset file_path, prompts, seed
+  │  4. POST /api/v2/jobs {workflow, extra_data:{api_key_comfy_org}} + Idempotency-Key
   ▼
 GET /api/jobs/[id]  →  GET /api/v2/jobs/{id}
-                       fallback GET /api/job/{id}/status + history
-GET /api/jobs/[id]/file  →  /api/view (follows signed URL without forwarding the key)
+GET /api/jobs/[id]/file  →  GET /api/v2/assets/{id} → signed url (key not forwarded)
 ```
 
 Batch mode: one source clip is uploaded once; the server submits **one Comfy job per SKU**.
@@ -38,7 +37,7 @@ Open-weights-only variant: skip `Flux3ImageNode` and use the SKU photo as `refer
 
 ```bash
 npm install
-export COMFY_API_KEY=comfyui-...   # https://platform.comfy.org/profile/api-keys
+export COMFY_API_KEY=your-api-key-here   # https://platform.comfy.org/profile/api-keys
 export COMFY_BASE_URL=https://dep-xxxx.run.comfy.app   # or omit for Cloud
 npm run dev                        # http://localhost:3000
 npm run typecheck
@@ -49,27 +48,23 @@ Do not commit the key. `.env.example` lists placeholders only. Publish the spec 
 
 ## Sample output path
 
-Attempted live run 2026-10-20 against `https://cloud.comfy.org` with the env key.
+Live Wan VACE run 2026-10-21 against the Comfy Build serverless endpoint (`COMFY_BASE_URL`, Cloud API v2, Bearer). One job, no retries. ~3 minutes wall time after queue.
 
 | Path | Result |
 | --- | --- |
 | `demo/input/source.mp4` | Source clip (person holding a can) |
 | `demo/input/sku_haven_ginger.jpg` | Replacement SKU |
-| `demo/input/source_frame.jpg` | First frame still |
-| `demo/output/submit.json` | App-level submit response (402 from Cloud) |
+| `demo/output/submit.json` | `{ jobs: [{ id: f4989ed7-c16d-4653-8d75-624282d37d1d, pipeline: wan-vace }] }` |
+| `demo/output/job.json` | `status: success`, outputs keyframe PNG + mp4 |
+| `demo/output/open_product_swap_wan.mp4` | **H.264 480×480, 1.499s, 24 frames, 114 KB** |
+| `demo/output/open_product_swap_keyframe_00001_.png` | FLUX 3 keyframe still |
 
-Upload to Cloud **succeeded**. Queueing a workflow returned **402** `insufficient_credits` on both:
-
-- `POST https://cloud.comfy.org/api/prompt`
-- `POST https://cloud.comfy.org/api/v2/jobs`
-
-The same key on Comfy Router (`POST https://api.comfy.org/v2/models/bfl/flux-3-image/requests`) also returned 402. No generated MP4 was written because Cloud would not enqueue. Re-run with credits: `node scripts/e2e.mjs` (server must be up).
+Settings: `pipeline=wan-vace`, 480×480, `durationSec=1.5`, `frames=17`, CausVid 4-step, FLUX 3 partner node kept (extra_data). Auth: Bearer only. Assets uploaded with `tags=["input"]` before the file part.
 
 ## Open issues
 
-1. **Cloud credits.** The provisioned `COMFY_API_KEY` authenticates and can upload inputs, but cannot queue workflows or Router models until the workspace has a subscription/credits.
-2. **Partner keyframe.** FLUX 3 Image is a partner node. It needs `extra_data.api_key_comfy_org` (wired) and partner billing. The LTX/Wan video graphs stay open-weights if that node is bypassed.
-3. **Mask quality.** `SAM3_Detect` is text-prompted; busy hands can leak. A points editor is not in the web UI yet (the graph accepts the prompt from the form).
-4. **Duration / resolution.** Defaults are short (LTX 25 frames at 768×512, Wan 480²) to keep jobs cheap. Longer clips need `8n+1` frames on LTX and more GPU time.
-5. **SaveVideo format widget.** `SaveVideo.format` is a dynamic combo; `auto` matches the official templates. If a worker rejects it, switch to `VHS_VideoCombine`.
-6. **No browser MCP in this session.** UI was verified by production build + `/api/health` + `/api/jobs` against a running server, not a headed browser.
+1. **Partner keyframe.** FLUX 3 Image is a partner node. It needs `extra_data.api_key_comfy_org` (wired) and partner billing. The LTX/Wan video graphs stay open-weights if that node is bypassed (`skipPartner=1`).
+2. **Mask quality.** `SAM3_Detect` is text-prompted; busy hands can leak. A points editor is not in the web UI yet (the graph accepts the prompt from the form).
+3. **Duration / resolution.** Defaults are short (LTX 25 frames at 768×512, Wan 480²) to keep jobs cheap. Longer clips need `8n+1` frames on LTX and more GPU time.
+4. **SaveVideo format widget.** `SaveVideo.format` is a dynamic combo; `auto` matches the official templates. If a worker rejects it, switch to `VHS_VideoCombine`.
+5. **No browser MCP in this session.** UI was verified by production build + `/api/health` + `/api/jobs` against a running server, not a headed browser.

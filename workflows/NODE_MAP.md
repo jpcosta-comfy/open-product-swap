@@ -1,6 +1,6 @@
 # Workflow node / input map
 
-Both graphs are Comfy **API format** (numeric node ids, `class_type`, `inputs`). Submit the object as `prompt` to `POST {COMFY_BASE_URL}/api/prompt`, or as `workflow` to `POST {COMFY_BASE_URL}/api/v2/jobs`. Default base is `https://cloud.comfy.org`; a Comfy Build serverless deployment uses `https://dep-xxxx.run.comfy.app`. Partner nodes (FLUX 3) need `extra_data.api_key_comfy_org` set to the same `COMFY_API_KEY` sent as `X-API-Key`.
+Both graphs are Comfy **API format** (numeric node ids, `class_type`, `inputs`). Submit as `workflow` to `POST {COMFY_BASE_URL}/api/v2/jobs` with `Authorization: Bearer` and `Idempotency-Key`. Default base is `https://cloud.comfy.org`; a Comfy Build serverless deployment uses `https://dep-xxxx.run.comfy.app`. Inputs are Cloud v2 assets: `POST /api/v2/assets` returns `{id,file_path}` and that `file_path` is written into `LoadVideo` / `LoadImage`. Partner nodes (FLUX 3) need `extra_data.api_key_comfy_org` set to the same `COMFY_API_KEY`.
 
 The Next.js server patches the nodes in this table before submit. Do not rename these ids without updating `lib/workflow.ts`.
 
