@@ -48,18 +48,19 @@ Do not commit the key. `.env.example` lists placeholders only. Publish the spec 
 
 ## Sample output path
 
-Live Wan VACE run 2026-10-21 against the Comfy Build serverless endpoint (`COMFY_BASE_URL`, Cloud API v2, Bearer). One job, no retries. ~3 minutes wall time after queue.
+Two live Wan VACE runs on 2026-10-21 against the Comfy Build serverless endpoint (`COMFY_BASE_URL`, Cloud API v2, Bearer). Auth: Bearer only. Assets uploaded with `tags=["input"]` before the file part. FLUX 3 partner node kept (`extra_data`). CausVid 4-step.
+
+**720p (primary demo).** Job `e4fe1ae5-d813-49fd-9300-0071d7494a65`. Looped `demo/input/source.mp4` (3.06s 768×512) into `demo/input/source_5s.mp4` (5.25s, 84 frames @16fps). Submitted 1280×720, `durationSec=5`, `frames=81`. Succeeded in ~4 minutes (SAM3_Detect → ModelSamplingSD3 → KSampler 4/4). No OOM, no 832×480 fallback.
 
 | Path | Result |
 | --- | --- |
-| `demo/input/source.mp4` | Source clip (person holding a can) |
-| `demo/input/sku_haven_ginger.jpg` | Replacement SKU |
-| `demo/output/submit.json` | `{ jobs: [{ id: f4989ed7-c16d-4653-8d75-624282d37d1d, pipeline: wan-vace }] }` |
-| `demo/output/job.json` | `status: success`, outputs keyframe PNG + mp4 |
-| `demo/output/open_product_swap_wan.mp4` | **H.264 480×480, 1.499s, 24 frames, 114 KB** |
-| `demo/output/open_product_swap_keyframe_00001_.png` | FLUX 3 keyframe still |
+| `demo/input/source_5s.mp4` | Looped source used for 720p |
+| `demo/output/submit_720p.json` | `{ jobs: [{ id: e4fe1ae5-…, pipeline: wan-vace }] }` |
+| `demo/output/job_720p.json` | `status: success`, `used: { width: 1280, height: 720, fallback: false }` |
+| `demo/output/open_product_swap_wan_720p.mp4` | **H.264 1280×720, 4.999s, 80 frames, 920 KB** |
+| `demo/output/open_product_swap_keyframe_720p.png` | FLUX 3 keyframe still |
 
-Settings: `pipeline=wan-vace`, 480×480, `durationSec=1.5`, `frames=17`, CausVid 4-step, FLUX 3 partner node kept (extra_data). Auth: Bearer only. Assets uploaded with `tags=["input"]` before the file part.
+**480p (kept).** Job `f4989ed7-c16d-4653-8d75-624282d37d1d`. 480×480, 1.5s, 24 frames. `demo/output/open_product_swap_wan.mp4` (114 KB).
 
 ## Open issues
 

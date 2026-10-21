@@ -84,17 +84,21 @@ comfy deploy stop build/
 
 ## Demo
 
-A live **Wan 2.1 VACE** product swap ran 2026-10-21 on a Comfy Build serverless GPU (Cloud API v2). SAM 3.1 masked the can, FLUX 3 (partner node, billed via `extra_data.api_key_comfy_org`) edited the keyframe, Wan VACE 14B + CausVid inpainted 480×480 / 1.5s. Job `f4989ed7-c16d-4653-8d75-624282d37d1d` **succeeded**.
+Live **Wan 2.1 VACE** product swaps on a Comfy Build serverless GPU (Cloud API v2, 2026-10-21). SAM 3.1 masked the can, FLUX 3 (partner node via `extra_data.api_key_comfy_org`) edited the keyframe, Wan VACE 14B + CausVid inpainted.
 
 | File | What |
 | --- | --- |
-| [`demo/input/source.mp4`](demo/input/source.mp4) | Source clip (person holding a can) |
+| [`demo/input/source.mp4`](demo/input/source.mp4) | Original 3s 768×512 source (person holding a can) |
+| [`demo/input/source_5s.mp4`](demo/input/source_5s.mp4) | Looped to 5.25s / 84 frames @16fps for the 720p job |
 | [`demo/input/sku_haven_ginger.jpg`](demo/input/sku_haven_ginger.jpg) | Replacement SKU |
-| [`demo/output/open_product_swap_wan.mp4`](demo/output/open_product_swap_wan.mp4) | Swapped video (H.264, 480×480, 1.5s, 24 frames) |
-| [`demo/output/open_product_swap_keyframe_00001_.png`](demo/output/open_product_swap_keyframe_00001_.png) | FLUX 3 product keyframe |
-| [`demo/output/job.json`](demo/output/job.json) | Poll snapshot (`status: success`) |
+| [`demo/output/open_product_swap_wan_720p.mp4`](demo/output/open_product_swap_wan_720p.mp4) | **720p demo** — H.264 1280×720, 5.0s, 80 frames. Job `e4fe1ae5-d813-49fd-9300-0071d7494a65` |
+| [`demo/output/open_product_swap_wan.mp4`](demo/output/open_product_swap_wan.mp4) | Short clip — H.264 480×480, 1.5s, 24 frames. Job `f4989ed7-c16d-4653-8d75-624282d37d1d` |
+| [`demo/output/open_product_swap_keyframe_720p.png`](demo/output/open_product_swap_keyframe_720p.png) | FLUX 3 keyframe from the 720p run |
+| [`demo/output/job_720p.json`](demo/output/job_720p.json) | 720p poll snapshot (`status: success`, no fallback) |
 
-Re-run with the Next server up: `node scripts/e2e.mjs` (short/low-res Wan VACE).
+The 720p job used landscape 1280×720 (input is 3:2; ImageScale center-crops to 16:9), `durationSec=5`, `frames=81` (output packed 80 frames @16fps). It finished in about four minutes; 832×480 fallback was not needed.
+
+Re-run short: `node scripts/e2e.mjs`. Re-run 720p: `OPS_WIDTH=1280 OPS_HEIGHT=720 OPS_DURATION=5 OPS_FRAMES=81 OPS_VIDEO=demo/input/source_5s.mp4 OPS_OUT=open_product_swap_wan_720p.mp4 node scripts/e2e.mjs`.
 
 ## Stack
 

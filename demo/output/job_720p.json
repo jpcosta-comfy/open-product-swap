@@ -1,0 +1,27 @@
+{
+  "status": "success",
+  "progress": 1,
+  "outputs": [
+    {
+      "id": "53a3b101-f45b-54a5-a152-c30793c18709",
+      "filename": "open_product_swap_keyframe_00001_.png",
+      "subfolder": "",
+      "type": "image",
+      "format": "image/png"
+    },
+    {
+      "id": "3910b277-ed2b-5ac2-9a8e-153da4e67040",
+      "filename": "open_product_swap_wan_00001_.mp4",
+      "subfolder": "",
+      "type": "video",
+      "format": "video/mp4"
+    }
+  ],
+  "rawStatus": "succeeded",
+  "used": {
+    "width": 1280,
+    "height": 720,
+    "jobId": "e4fe1ae5-d813-49fd-9300-0071d7494a65",
+    "fallback": false
+  }
+}
